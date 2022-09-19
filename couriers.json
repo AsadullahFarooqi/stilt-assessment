@@ -1,0 +1,59 @@
+[
+    {
+        "name": "Courier 12", 
+        "arrivalTime": 14
+    },
+    {
+        "name": "Courier 0", 
+        "arrivalTime": 3
+    },
+	
+    {
+        "name": "Courier 2", 
+        "arrivalTime": 5
+    },
+    {
+        "name": "Courier 3", 
+        "arrivalTime": 6
+    }, 
+    {
+        "name": "Courier 6", 
+        "arrivalTime": 9
+    }, 
+    {
+        "name": "Courier 7", 
+        "arrivalTime": 10
+    },
+    {
+        "name": "Courier 8", 
+        "arrivalTime": 10
+    },
+    {
+        "name": "Courier 4", 
+        "arrivalTime": 7
+    },
+    {
+        "name": "Courier 5", 
+        "arrivalTime": 8
+    },
+    {
+        "name": "Courier 9", 
+        "arrivalTime": 11
+    },
+    {
+        "name": "Courier 1", 
+        "arrivalTime": 4
+    }, 
+    {
+        "name": "Courier 10", 
+        "arrivalTime": 12
+    },
+    {
+        "name": "Courier 11", 
+        "arrivalTime": 13
+    },
+    {
+        "name": "Courier 13", 
+        "arrivalTime": 15
+    }
+]
