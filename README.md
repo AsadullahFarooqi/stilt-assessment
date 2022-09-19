@@ -1,20 +1,22 @@
 # Stilt assessment
 
+As the assessment discouraged the use of production technologies thats why i didn't write the Docker file.
+
+## running the code
+The first parent directory has the first-in-first-out strategy code. To run that code
+you can just hit `ctrl+F5` in the VS-Code. If you don't have the vs-code setup then
+open a terminal and change your directory to the assessment directory and run `go run sol.go` command.
+
+To run the matched_strategy change your directory to the <assessment>/matched_strategy and run the same
+command.
+
+if you don't have the golang setup follow [this link](https://go.dev/doc/install)
+
 ### First-in-first-out
 In this strategy, I append the resources to the relative slices and read them
 from the start, this behavior is kind of similar to queue.
 
-Below are some global variables that I have used to get it done
-1. `freeCouriers []*Courier` in the start all the couriers are free.
-2. `arrivedCouriers []*Courier` after arrival the courier falls in arrivedCouriers.
-3. `readyOrders []*Order` prepared orders adds into the readyOrders.
-4. `courierTotalWaitTime` after every delivery the courier total wait time gets updated
-5. `orderTotalWaitTime` after picking up the order total wait time gets updated
-
-
 The code works as follows:
-
-There are two objects/types, one Order and another Courier.
 
 - The code first reads the JSON files to collect the data and store them
     in the global slices (these can be created locally and passed in
@@ -40,10 +42,6 @@ There are two objects/types, one Order and another Courier.
     ready orders and if any courier is available in the arrived couriers. consider an order
     delivered and put the courier back into the freeCouriers slice.
 - Once we are done with all the orders we calculate the statistics from the stored data.
-
-I have used Mutexes in the code to lock the resources while reading or writing
-to avoid race conditions. I have used WaitGroup to wait for the go routine functions to end before calculating the stats
-So there are no orders processing in the background.
 
 
 ### Matched
@@ -81,6 +79,25 @@ There are two objects/types, one Order and another Courier.
     delivered and put the courier back into the freeCouriers slice.
 - Once we are done with all the orders we calculate the statistics from the stored data.
 
-I have used Mutexes in the code to lock the resources while reading or writing
-to avoid race conditions.
+A map could be used for storing the arrivedCouriers as well by the prepare time as
+a key and a slice of couriers. Just like it's done for orders.
 
+
+In both strategies I have used Mutexes in the code to lock the resources while reading or writing
+to avoid race conditions. I have used WaitGroup to wait for the go routine functions to end before
+calculating the stats So there are no orders processing in the background.
+
+
+## Improvements that could have been made 
+It could have been done more structurally but my apologies due to my busy
+days that's all I could do for staying up the night 🙂. Below are few
+improvements that can take place:
+
+1. The tests aren't very good
+2. error handling or edge cases handling, for example it is possible there is no match for an order in the couriers
+   in that case the program will halt and wait.
+3. All these global variables can be passed as params as well
+4. JSON Files names should also come from environment or command line and have default values in case of nil values.
+5. A docker file may be helpful in different setups.
+
+**Final note I can do this task in Python and Nodejs/JS as well.**

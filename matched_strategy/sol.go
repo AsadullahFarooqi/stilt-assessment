@@ -12,14 +12,17 @@ import (
 
 var log = logging.MustGetLogger("KitchenOrdersDelivery")
 
+type TimeToOrderMap map[int][]*Order
+
 var freeCouriers []*Courier
 var arrivedCouriers []*Courier
 
-var readyOrders []*Order
+var readyOrders = make(TimeToOrderMap, 0)
 
 var courierTotalWaitTime time.Duration
 var orderTotalWaitTime time.Duration
 
+// An order for kitchen holds relative information
 type Order struct {
 	Id       string `json:"id"`
 	Name     string `json:"name"`
@@ -29,6 +32,7 @@ type Order struct {
 	PickedAt time.Time
 }
 
+// An courier for delivery holds relative information
 type Courier struct {
 	Name       string `json:"name"`
 	ArriveTime int64  `json:"arrivalTime"`
@@ -36,6 +40,8 @@ type Courier struct {
 	PickedAt   time.Time
 }
 
+// Finds a courier in the provided couriers list that matches the prepTime
+// returns the index and error
 func findCourier(couriers []*Courier, prepTime int64) (int, error) {
 	for i, c := range couriers {
 		if c.ArriveTime == prepTime {
@@ -45,16 +51,8 @@ func findCourier(couriers []*Courier, prepTime int64) (int, error) {
 	return -1, fmt.Errorf("courier not found")
 }
 
-func findOrder(orders []*Order, prepTime int64) (int, error) {
-	for i, c := range orders {
-		if c.PrepTime == prepTime {
-
-			return i, nil
-		}
-	}
-	return -1, fmt.Errorf("order not found")
-}
-
+// Acknowledges the receive of order and calls orderPrepared
+// also calls for the courier dispatch
 func (o *Order) orderReceived(mx *sync.Mutex, wg *sync.WaitGroup) {
 	// log order received
 	log.Info("Order received: ", o.Id)
@@ -67,19 +65,24 @@ func (o *Order) orderReceived(mx *sync.Mutex, wg *sync.WaitGroup) {
 	o.orderPrepared(mx)
 }
 
+// Acknowledges the prepare of order and calls for pickup
+// updates the readyAt field of the order
 func (o *Order) orderPrepared(mx *sync.Mutex) {
 	o.ReadyAt = time.Now()
 	// log order prepared
 	log.Info("Order prepared: ", o.Id)
 	// add the order into prepared orders
 	mx.Lock()
-	readyOrders = append(readyOrders, o)
+	readyOrders[int(o.PrepTime)] = append(readyOrders[int(o.PrepTime)], o)
 	mx.Unlock()
 
 	orderPickedUp(mx, o.PrepTime)
 
 }
 
+// courierDispatched finds the relative courier in the freeCouriers
+// and calls for the courier to be arrived
+// after the sleep. Then calls for courier arrived
 func courierDispatched(mx *sync.Mutex, wg *sync.WaitGroup, o *Order) {
 	defer wg.Done()
 	// move a courier from free to busy
@@ -90,7 +93,7 @@ func courierDispatched(mx *sync.Mutex, wg *sync.WaitGroup, o *Order) {
 	mx.Lock()
 	courierIndex, err := findCourier(freeCouriers, o.PrepTime)
 	if err != nil {
-		log.Warning("courier not found they must be busy, Error: %s", err.Error())
+		log.Warningf("courier not found they must be busy, Error: %s", err.Error())
 		mx.Unlock()
 		return
 	}
@@ -114,6 +117,7 @@ func courierDispatched(mx *sync.Mutex, wg *sync.WaitGroup, o *Order) {
 	courier.courierArrived(mx)
 }
 
+// Acknowledges the arrival of courier and calls for pickup
 func (c *Courier) courierArrived(mx *sync.Mutex) {
 	// log courier arrived
 	log.Info("Courier arrived: ", c.Name)
@@ -127,9 +131,12 @@ func (c *Courier) courierArrived(mx *sync.Mutex) {
 	orderPickedUp(mx, c.ArriveTime)
 }
 
+// Exits if there is no order to pickup or no arrivedCourier
+// it removes the courier from arrivedCourier after picking and adds
+// him back in the free couriers. It also removes the order from Orders
 func orderPickedUp(mx *sync.Mutex, matchingPoint int64) {
 	// pick an order from ready orders
-	if len(arrivedCouriers) < 1 || len(readyOrders) < 1 {
+	if len(arrivedCouriers) < 1 || len(readyOrders[int(matchingPoint)]) < 1 {
 		return
 	}
 
@@ -137,26 +144,19 @@ func orderPickedUp(mx *sync.Mutex, matchingPoint int64) {
 	// find a courier for the delivery
 	courierIndex, err := findCourier(arrivedCouriers, matchingPoint)
 	if err != nil {
-		log.Warning("couriers must be on the way, Error: ", err.Error())
+		log.Warningf("couriers must be on the way, Error: ", err.Error())
 		mx.Unlock()
 		return
 	}
 
-	// take the 1st available matching order for delivery
-	orderIndex, err := findOrder(readyOrders, matchingPoint)
-	if err != nil {
-		log.Warning("order must preparing, Error: ", err.Error())
-		mx.Unlock()
-		return
-	}
+	order := readyOrders[int(matchingPoint)][0]
 
 	// remove the courier from the arrivedCouriers
 	courier := arrivedCouriers[courierIndex]
 	rmvFromArrivedCouriers(courierIndex)
 
-	order := readyOrders[orderIndex]
 	// remove the order from readyOrders
-	rmvFromReadyOrders(orderIndex)
+	readyOrders[int(matchingPoint)] = readyOrders[int(matchingPoint)][0+1:]
 
 	orderTotalWaitTime += time.Since(order.ReadyAt)
 	courierTotalWaitTime += time.Since(courier.ArrivedAt)
@@ -169,12 +169,14 @@ func orderPickedUp(mx *sync.Mutex, matchingPoint int64) {
 	mx.Unlock()
 }
 
+// Starts the order processing flow
 func (o *Order) process(mx *sync.Mutex, wg *sync.WaitGroup) {
 	defer wg.Done()
 	// order received
 	o.orderReceived(mx, wg)
 }
 
+// removes a courier from arrived ones
 func rmvFromArrivedCouriers(index int) {
 	if int(index+1) == len(arrivedCouriers) {
 		arrivedCouriers = arrivedCouriers[:index]
@@ -183,19 +185,9 @@ func rmvFromArrivedCouriers(index int) {
 	}
 }
 
-func rmvFromReadyOrders(index int) {
-	if index+1 == len(readyOrders) {
-		readyOrders = readyOrders[:index]
-	} else {
-		readyOrders = append(
-			readyOrders[:index],
-			readyOrders[index+1:]...)
-	}
-}
-
 func main() {
 	// read the orders JSON into orders slice
-	rawOrders, err := ioutil.ReadFile("../dispatch_orders copy.json")
+	rawOrders, err := ioutil.ReadFile("../dispatch_orders.json")
 	if err != nil {
 		log.Fatal("Error when opening file: ", err)
 	}

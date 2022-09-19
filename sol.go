@@ -19,6 +19,7 @@ var readyOrders []*Order
 var courierTotalWaitTime time.Duration
 var orderTotalWaitTime time.Duration
 
+// An order for kitchen holds relative information
 type Order struct {
 	Id       string `json:"id"`
 	Name     string `json:"name"`
@@ -28,6 +29,7 @@ type Order struct {
 	PickedAt time.Time
 }
 
+// An courier for delivery holds relative information
 type Courier struct {
 	Name       string `json:"name"`
 	ArriveTime int64  `json:"arrivalTime"`
@@ -35,6 +37,8 @@ type Courier struct {
 	PickedAt   time.Time
 }
 
+// Acknowledges the receive of order and calls orderPrepared
+// also calls for the courier dispatch
 func (o *Order) orderReceived(mx *sync.Mutex, wg *sync.WaitGroup) {
 	// log order received
 	log.Info("Order received: ", o.Id)
@@ -47,6 +51,8 @@ func (o *Order) orderReceived(mx *sync.Mutex, wg *sync.WaitGroup) {
 	o.orderPrepared(mx)
 }
 
+// Acknowledges the prepare of order and calls for pickup
+// updates the readyAt field of the order
 func (o *Order) orderPrepared(mx *sync.Mutex) {
 	o.ReadyAt = time.Now()
 	// log order prepared
@@ -59,6 +65,9 @@ func (o *Order) orderPrepared(mx *sync.Mutex) {
 
 }
 
+// courierDispatched dispatches the 1st courier of the freeCouriers
+// and calls for the courier to be arrived
+// after the sleep. Then calls for courier arrived
 func courierDispatched(mx *sync.Mutex, wg *sync.WaitGroup) {
 	defer wg.Done()
 	// move a courier from free to busy
@@ -81,6 +90,7 @@ func courierDispatched(mx *sync.Mutex, wg *sync.WaitGroup) {
 	courier.courierArrived(mx)
 }
 
+// Acknowledges the arrival of courier and calls for pickup
 func (c *Courier) courierArrived(mx *sync.Mutex) {
 	// log courier arrived
 	log.Info("Courier arrived: ", c.Name)
@@ -94,6 +104,9 @@ func (c *Courier) courierArrived(mx *sync.Mutex) {
 	orderPickedUp(mx)
 }
 
+// Exits if there is no order to pickup or no arrivedCourier
+// it removes the courier from arrivedCourier after picking and adds
+// him back in the free couriers. It also removes the order from Orders
 func orderPickedUp(mx *sync.Mutex) {
 	// defer wg.Done()
 	// pick an order from ready orders
@@ -121,6 +134,7 @@ func orderPickedUp(mx *sync.Mutex) {
 	mx.Unlock()
 }
 
+// Starts the order processing flow
 func (o *Order) process(mx *sync.Mutex, wg *sync.WaitGroup) {
 	defer wg.Done()
 	// order received
@@ -129,7 +143,7 @@ func (o *Order) process(mx *sync.Mutex, wg *sync.WaitGroup) {
 
 func main() {
 	// read the orders JSON into orders slice
-	rawOrders, err := ioutil.ReadFile("./dispatch_orders copy.json")
+	rawOrders, err := ioutil.ReadFile("./dispatch_orders.json")
 	if err != nil {
 		log.Fatal("Error when opening file: ", err)
 	}
